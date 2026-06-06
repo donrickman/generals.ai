@@ -203,16 +203,40 @@ if __name__ == "__main__":
 
 ---
 
+## Output Discipline
+
+Large command output floods context and degrades reasoning. Rules:
+- Capture output to a file, analyze it, print findings — never dump raw data to context
+- `| head -20` loses the rest — write to `/tmp/`, read selectively
+- Print what matters (bug details, counts, IDs) not what exists (entire JSON blobs)
+
+```bash
+# Pattern: capture → analyze → summarize
+curl ... > /tmp/api_out.json
+python3 -c "
+import json
+d = json.load(open('/tmp/api_out.json'))
+print(f'status={d.get(\"status\")} items={len(d.get(\"results\",[]))}')
+"
+```
+
 ## Skills Available
 
 All skills are in `~/.claude/skills/`. Use them via the Skill tool.
 
-**Aegis-specific:**
-- `aegis:connection-discovery` — the full discovery protocol
-- `aegis:report-progress` — webhook communication patterns
-- `aegis:write-connection-code` — artifact format, testing, storage
+**Aegis — execution:**
+- `aegis:execute-task` — how to triage, route, and drive any task to completion
+- `aegis:connection-discovery` — the full research→generate→test→adapt discovery loop
+- `aegis:report-progress` — all webhook patterns (progress / challenge / result / error)
+- `aegis:write-connection-code` — connection_code artifact format, testing, storage
 
-**Superpowers (from obra/superpowers):**
+**Aegis — connection recipes (use these inside connection-discovery):**
+- `aegis:connect-google-oauth` — Gmail, Calendar, Drive, Sheets via Google OAuth2
+- `aegis:connect-oauth2-generic` — any other OAuth2 service (Slack, HubSpot, Shopify, GitHub, Microsoft, etc.)
+- `aegis:connect-api-key` — any API key / bearer token service
+- `aegis:connect-playwright` — browser automation for login-wall services
+
+**Superpowers:**
 - `superpowers:systematic-debugging` — root cause before fixes, four-phase process
 - `superpowers:verification-before-completion` — evidence before completion claims
 - `superpowers:executing-plans` — structured plan execution
@@ -220,3 +244,16 @@ All skills are in `~/.claude/skills/`. Use them via the Skill tool.
 - `superpowers:writing-plans` — structured planning before complex work
 - `superpowers:dispatching-parallel-agents` — parallel independent work
 - `superpowers:test-driven-development` — test first for connection_code
+
+## Skill Selection Guide
+
+| Task type | Start with |
+|---|---|
+| New task arrived via /prompt | `aegis:execute-task` |
+| Connect a new service | `aegis:connection-discovery` |
+| Service uses Google account | `aegis:connect-google-oauth` |
+| Service uses API key/token | `aegis:connect-api-key` |
+| Service has no API (web only) | `aegis:connect-playwright` |
+| Service uses OAuth2 (non-Google) | `aegis:connect-oauth2-generic` |
+| Something broke | `superpowers:systematic-debugging` |
+| About to claim task is done | `superpowers:verification-before-completion` |
