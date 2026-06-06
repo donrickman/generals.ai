@@ -230,11 +230,8 @@ All skills are in `~/.claude/skills/`. Use them via the Skill tool.
 - `aegis:report-progress` — all webhook patterns (progress / challenge / result / error)
 - `aegis:write-connection-code` — connection_code artifact format, testing, storage
 
-**Aegis — connection recipes (use these inside connection-discovery):**
-- `aegis:connect-google-oauth` — Gmail, Calendar, Drive, Sheets via Google OAuth2
-- `aegis:connect-oauth2-generic` — any other OAuth2 service (Slack, HubSpot, Shopify, GitHub, Microsoft, etc.)
-- `aegis:connect-api-key` — any API key / bearer token service
-- `aegis:connect-playwright` — browser automation for login-wall services
+**Aegis — connection:**
+- `aegis:auth-strategies` — how to research, probe, read failure signals, and switch strategies iteratively
 
 **Superpowers:**
 - `superpowers:systematic-debugging` — root cause before fixes, four-phase process
@@ -250,10 +247,7 @@ All skills are in `~/.claude/skills/`. Use them via the Skill tool.
 | Task type | Start with |
 |---|---|
 | New task arrived via /prompt | `aegis:execute-task` |
-| Connect a new service | `aegis:connection-discovery` |
-| Service uses Google account | `aegis:connect-google-oauth` |
-| Service uses API key/token | `aegis:connect-api-key` |
-| Service has no API (web only) | `aegis:connect-playwright` |
-| Service uses OAuth2 (non-Google) | `aegis:connect-oauth2-generic` |
+| Connect a new service | `aegis:connection-discovery` → `aegis:auth-strategies` |
+| Stuck on auth — which method to try | `aegis:auth-strategies` |
 | Something broke | `superpowers:systematic-debugging` |
 | About to claim task is done | `superpowers:verification-before-completion` |
