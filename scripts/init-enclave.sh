@@ -15,7 +15,7 @@
 
 set -euo pipefail
 
-SCAFFOLD_REPO="git@github.com:donrickman/generals.ai.git"
+SCAFFOLD_REPO="https://github.com/donrickman/generals.ai.git"
 INIT_MARKER="$HOME/.aegis_initialized"
 WORKSPACE="$HOME/workspace"
 CREDS_DIR="$WORKSPACE/credentials"
@@ -27,8 +27,11 @@ err() { echo "[init-enclave] ERROR: $*" >&2; exit 1; }
 # Validate required env vars
 [[ -z "${HOME:-}" ]]            && err "HOME not set — pod spec missing HOME env var"
 [[ -z "${ENCLAVE_USER_ID:-}" ]] && err "ENCLAVE_USER_ID not set"
-[[ "$HOME" == "/root" ]]        && err "HOME is /root (ephemeral). Set HOME=/data/users/\$ENCLAVE_USER_ID in pod spec."
-[[ "$HOME" != /data/* ]]        && err "HOME=$HOME is not on the PVC. Expected /data/users/<uuid>."
+
+if [[ "$HOME" != /data/* ]]; then
+    log "WARNING: HOME=$HOME is not on a persistent volume — state will not survive pod restart"
+    log "  In production K8s, set HOME=/data/users/\$ENCLAVE_USER_ID in the pod spec"
+fi
 
 log "Starting enclave init for user $ENCLAVE_USER_ID"
 log "HOME=$HOME"
@@ -48,17 +51,19 @@ log "First boot — setting up scaffold"
 # Ensure HOME exists on PVC
 mkdir -p "$HOME"
 
-# Clone scaffold into HOME, then detach remote
-# Each user's PVC becomes their own independent copy
+# Clone scaffold to a temp dir, then copy only .claude/ into HOME.
+# Cloning directly into HOME fails when HOME is non-empty (e.g. /root in local dev,
+# or any directory that already has files).
+SCAFFOLD_TMP=$(mktemp -d /tmp/aegis-scaffold-XXXXXX)
 log "Cloning scaffold from $SCAFFOLD_REPO"
-git clone "$SCAFFOLD_REPO" "$HOME" --depth=1 --quiet || err "Failed to clone scaffold repo"
+git clone "$SCAFFOLD_REPO" "$SCAFFOLD_TMP" --depth=1 --quiet || err "Failed to clone scaffold repo"
 
-# Detach from remote — this user's copy is now independent
-rm -rf "$HOME/.git"
-log "Detached scaffold from remote — user copy is now independent"
+mkdir -p "$HOME/.claude"
+cp -rn "$SCAFFOLD_TMP/.claude/." "$HOME/.claude/"
+rm -rf "$SCAFFOLD_TMP"
+log "Scaffold .claude/ installed"
 
 # Initialize workspace as its own git repo for connection_code tracking
-git -C "$HOME" init --quiet
 git -C "$WORKSPACE" init --quiet 2>/dev/null || true
 
 # Create required workspace subdirectories
