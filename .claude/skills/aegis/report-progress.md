@@ -137,11 +137,29 @@ Use `manual_required` challenge type for hard blockers. Describe exactly what th
 ## Python Helper
 
 ```python
-import os, json
+import os, json, time
 import httpx
 
+EVENT_LOG = "/data/events.jsonl"
+
+def _write_event_log(type: str, data: dict, challenge_type: str = None):
+    """Append event to local log so take_action polling can pick it up."""
+    event = {
+        "seq": int(time.time() * 1000),
+        "type": type,
+        "data": data,
+    }
+    if challenge_type:
+        event["challenge_type"] = challenge_type
+    try:
+        with open(EVENT_LOG, "a") as f:
+            f.write(json.dumps(event) + "\n")
+    except Exception:
+        pass  # non-fatal — don't break the main push path
+
 def report(type: str, data: dict, challenge_type: str = None):
-    """Push an event to the Aegis API."""
+    """Write to local event log and push to the Aegis API."""
+    _write_event_log(type, data, challenge_type)
     payload = {
         "user_id": os.getenv("ENCLAVE_USER_ID"),
         "type": type,
@@ -160,5 +178,5 @@ def report(type: str, data: dict, challenge_type: str = None):
 # Usage:
 report("progress", {"message": "Testing OAuth2 token exchange..."})
 report("challenge", {"challenge_type": "mfa_code", "prompt": "Enter your 2FA code:"}, challenge_type="mfa_code")
-report("result", {"success": True, "service_name": "gmail", "strategy_type": "oauth", "summary": "Connected to Gmail.", "source_context": "...", "connection_code": "..."})
+report("result", {"success": True, "service_name": "gmail", "strategy_type": "oauth", "summary": "Connected to Gmail.", "source_context": "...", "connection_code": "...", "message": "Connected to Gmail successfully."})
 ```
