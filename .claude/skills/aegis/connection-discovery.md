@@ -31,11 +31,18 @@ Before writing a single line of code, answer these questions:
    - Search: `<service> API documentation`, `<service> Python library`, `<service> unofficial API`
 
 2. **What auth mechanisms are available?**
-   - OAuth2 (standard — prefer this if available)
-   - API key (simple, look in account settings → Developer → API Keys)
-   - Session cookie (Playwright login → extract cookie → use in requests)
-   - Basic auth (username + password in HTTP header — becoming rare)
+   - OAuth2 (standard web flow — good for services with official APIs)
+   - API key (look in account settings → Developer → API Keys)
+   - Username/password direct auth (basic auth header, or form-based login)
+   - Session cookie (Playwright logs in → extracts cookie → uses in requests)
    - No auth required (public data)
+
+   **Playwright is a primary strategy, not a fallback.** For any service with a web UI,
+   Playwright login is a valid first approach — especially when API access is locked down,
+   requires app registration, or the auth flow is easier to automate in a browser.
+   The persistent browser profile at `~/workspace/browser-profile/` means the user
+   authenticates once and stays logged in across pod restarts. Prefer Playwright early
+   when the service's web login is simpler than its API auth.
 
 3. **Are there existing examples?**
    - Check `~/workspace/connection_code/` — may already be solved
@@ -79,9 +86,11 @@ Run the code. Read the response carefully.
 
 ## Phase 4: Adapt
 
-If the direct API approach isn't working after 2-3 attempts, switch strategy:
+Don't wait until 3 API failures before trying Playwright. If research shows the service
+has a simpler web login than an API auth flow, start there. Switch strategies as soon as
+you have evidence the current approach won't work — not after exhausting it.
 
-**Direct API failing → try Playwright:**
+**API approach blocked → try Playwright:**
 ```python
 from playwright.sync_api import sync_playwright
 

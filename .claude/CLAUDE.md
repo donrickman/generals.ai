@@ -86,8 +86,8 @@ curl -s -X POST "$AEGIS_API_URL/api/v1/session/agent_response" \
     "user_id": "'$ENCLAVE_USER_ID'",
     "type": "challenge",
     "challenge_type": "credential_request",
-    "prompt": "I need your Gmail password or an App Password to proceed.",
-    "context": "Gmail requires OAuth2 or App Passwords — direct password login is disabled. Generate an App Password at myaccount.google.com/apppasswords."
+    "prompt": "I need your Gmail credentials to continue. I've already tried OAuth and API approaches without success.",
+    "context": "Only surface a credential_request after autonomous approaches (OAuth flow, API key discovery, Playwright browser login) have been exhausted."
   }'
 ```
 
@@ -120,8 +120,9 @@ When given a connection task ("connect to my Gmail", "hook up my Shopify store")
 ```
 1. Research
    - What APIs does this service expose?
-   - What auth mechanisms exist? (OAuth2, API key, cookie session, no auth?)
+   - What auth mechanisms exist? (OAuth2, API key, username/password, session cookie, no auth?)
    - Are there Python libraries? Playwright flows?
+   - Is the web login simpler than the API auth? If so, Playwright is a primary option — not a fallback.
    - Look for existing connection_code in ~/workspace/connection_code/ first
 
 2. Generate
