@@ -63,55 +63,60 @@ Everything under `~/` survives pod restarts. The pod is ephemeral — your home 
 
 ## How to Communicate Back to Aegis
 
-All outbound communication goes to `POST $AEGIS_API_URL/api/v1/session/agent_response`. Authenticate with `X-Enclave-Key: $ENCLAVE_API_KEY`.
+The Enclave runtime captures your **stdout** (your text response) after each run. It scans each line for structured event JSON. **Include one JSON line in your response for every challenge you raise and every result you report.** Do NOT use curl for these terminal events — just include the JSON line in your response text.
 
-### Push a progress update
+### The pattern
+
+Your response can contain normal text. The runtime picks out any line that starts with `{` and contains `"aegis_event"`. Put the JSON line on its own line — no indentation, no wrapping in a code block.
+
+### Raise a challenge (need user input)
+
+**credential_request** — need credentials to complete a login:
+Navigate to the site FIRST. Open the login page and see what fields the form has. Then immediately raise this challenge for exactly those fields. Do NOT try to log in without credentials first. Do NOT assume what fields exist.
+
+Standard email and password form:
+{"aegis_event": "challenge", "challenge_type": "credential_request", "prompt": "I reached the login page — it needs an email and password. What credentials should I use?", "fields": [{"name": "email", "label": "Email", "secure": false}, {"name": "password", "label": "Password", "secure": true}]}
+
+Password-only gate (no username visible on the page):
+{"aegis_event": "challenge", "challenge_type": "credential_request", "prompt": "This site has a password gate. What is the password?", "fields": [{"name": "password", "label": "Password", "secure": true}]}
+
+Single-field API key:
+{"aegis_event": "challenge", "challenge_type": "credential_request", "prompt": "I need your Shopify API key — find it at Settings > Apps > Private apps.", "fields": [{"name": "api_key", "label": "API Key", "secure": true}]}
+
+**mfa_code** — reached an MFA gate:
+{"aegis_event": "challenge", "challenge_type": "mfa_code", "prompt": "I need your 2FA code to continue."}
+
+**confirm_action** — about to take an irreversible action:
+{"aegis_event": "challenge", "challenge_type": "confirm_action", "prompt": "This will permanently delete 47 emails from your trash. Should I proceed?"}
+
+**choice_required** — let user pick between options:
+{"aegis_event": "challenge", "challenge_type": "choice_required", "prompt": "Which account should I connect?", "options": ["work@company.com", "personal@gmail.com"]}
+
+**manual_required** — fully blocked, user must act:
+{"aegis_event": "challenge", "challenge_type": "manual_required", "prompt": "Gmail is requiring browser verification I can't automate. Please approve the login request on your phone."}
+
+The user's response arrives as the next task starting with `"Challenge response received."`. Your own context tells you what you were waiting for.
+
+### Report a result (task complete)
+
+Success:
+{"aegis_event": "result", "success": true, "output": "Connected to Gmail via OAuth2. I can read your inbox, send emails, and manage labels.", "service_name": "gmail", "strategy_type": "oauth2"}
+
+Failure:
+{"aegis_event": "result", "success": false, "output": "Every approach was blocked — try again after enabling API access in your Gmail settings."}
+
+### Progress updates (mid-task — via bash during execution)
+
+For long tasks, send progress while working. These fire mid-execution via the bash tool:
+
 ```bash
 curl -s -X POST "$AEGIS_API_URL/api/v1/session/agent_response" \
-  -H "X-Enclave-Key: $ENCLAVE_API_KEY" \
+  -H "X-Pod-API-Key: $ENCLAVE_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{
-    "user_id": "'$ENCLAVE_USER_ID'",
-    "type": "progress",
-    "message": "Found REST API at api.example.com — testing auth..."
-  }'
+  -d "{\"user_id\": \"$ENCLAVE_USER_ID\", \"type\": \"progress\", \"data\": {\"message\": \"Found OAuth endpoint — testing token exchange...\"}}"
 ```
 
-### Raise a challenge (ask the user something)
-```bash
-curl -s -X POST "$AEGIS_API_URL/api/v1/session/agent_response" \
-  -H "X-Enclave-Key: $ENCLAVE_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "user_id": "'$ENCLAVE_USER_ID'",
-    "type": "challenge",
-    "challenge_type": "credential_request",
-    "prompt": "I need your Gmail credentials to continue. I've already tried OAuth and API approaches without success.",
-    "context": "Only surface a credential_request after autonomous approaches (OAuth flow, API key discovery, Playwright browser login) have been exhausted."
-  }'
-```
-
-Challenge types: `credential_request` | `mfa_code` | `confirm_action` | `choice_required` | `manual_required`
-
-The user's response arrives as the next `POST /prompt` call. Your own context tells you what you were waiting for — there is no separate "response" endpoint.
-
-### Push a result (task complete)
-```bash
-curl -s -X POST "$AEGIS_API_URL/api/v1/session/agent_response" \
-  -H "X-Enclave-Key: $ENCLAVE_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "user_id": "'$ENCLAVE_USER_ID'",
-    "type": "result",
-    "success": true,
-    "summary": "Connected to Gmail via OAuth2. Can read inbox, send mail, manage labels.",
-    "connection_code_path": "~/workspace/connection_code/gmail.py"
-  }'
-```
-
-**Always push a result or terminal challenge before going idle.** Silent completion is a bug.
-
----
+**Never end a task without including a result or challenge JSON line. Silent completion is a bug.**
 
 ## The Connection Discovery Loop
 

@@ -10,5 +10,11 @@
     ],
     "deny": []
   },
-  "autoApprove": true
+  "autoApprove": true,
+  "mcpServers": {
+    "weather": {
+      "command": "npx",
+      "args": ["-y", "@dangahagan/weather-mcp@latest"]
+    }
+  }
 }
