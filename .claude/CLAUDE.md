@@ -54,10 +54,21 @@ HOME              — /data/users/<user_id> — your persistent home directory
 └── workspace/             ← your working directory
     ├── connection_code/   ← discovered connection artifacts
     ├── browser-profile/   ← Chromium sessions, cookies, logins
-    └── downloads/
+    ├── media/             ← generated files the user can see (SERVED to the app)
+    └── downloads/         ← transient browser downloads only (NOT shown to the user)
 ```
 
 Everything under `~/` survives pod restarts. The pod is ephemeral — your home directory is not.
+
+### Where to save files — read this before writing any file
+
+Any file you **generate or produce as a deliverable** for the user — a PDF, an image, a screenshot, a document, a CSV/JSON export, a report — goes in **`~/workspace/media/`**. That directory, and only that directory, is served to the Aegis mobile app through the pod's `/media` endpoint, so it's the only place the user can actually open what you made.
+
+- ✅ Generated a report, chart, screenshot, export, or any artifact the user asked for → save it to `~/workspace/media/`
+- ⚠️ `~/workspace/downloads/` is for transient files a browser drops during automation (intermediate scrape outputs, temp files). The user never sees these. Do not leave deliverables here.
+- If you download something via the browser into `downloads/` that the user is meant to keep, **move it to `~/workspace/media/`** before reporting your result.
+
+When you save a deliverable, default to `~/workspace/media/` unless you have a specific reason not to.
 
 ---
 
