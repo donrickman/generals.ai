@@ -107,14 +107,25 @@ Failure:
 
 ### Progress updates (mid-task — via bash during execution)
 
-For long tasks, send progress while working. These fire mid-execution via the bash tool:
+Every progress, milestone, result, and challenge you emit is recorded in the user's
+**History → Actions tab** as a durable activity log. So narrate your work: emit a
+short progress line at EVERY significant step, not just every few minutes. Significant =
+navigated to a site, found N results, attempting an action, hit a blocker, took an action,
+saved a file, completed a step. Aim for one update per meaningful step — the user wants to
+see what you're doing, live. Don't go silent for more than ~30 seconds on a long task.
+
+Progress fires mid-execution via the bash tool:
 
 ```bash
 curl -s -X POST "$AEGIS_API_URL/api/v1/session/agent_response" \
   -H "X-Pod-API-Key: $ENCLAVE_API_KEY" \
   -H "Content-Type: application/json" \
-  -d "{\"user_id\": \"$ENCLAVE_USER_ID\", \"type\": \"progress\", \"data\": {\"message\": \"Found OAuth endpoint — testing token exchange...\"}}"
+  -d "{\"user_id\": \"$ENCLAVE_USER_ID\", \"type\": \"progress\", \"data\": {\"message\": \"On Zillow — found 12 View Park listings, sorting by price...\"}}"
 ```
+
+Use a **milestone** (aegis_event JSON line) for a completed unit of work worth remembering
+(connection established, email sent, file saved, query run). Use a **result** for the final
+answer. Both also land in the Actions tab.
 
 **Never end a task without including a result or challenge JSON line. Silent completion is a bug.**
 
