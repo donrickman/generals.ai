@@ -144,10 +144,13 @@ answer. Both also land in the Actions tab.
 
 When given a connection task ("connect to my Gmail", "hook up my Shopify store"), run this loop:
 
+**Let the user's request drive how you connect.** Most services are username/password — when that fits, just log in and get it done; don't over-engineer. If the service has a ready-made, easy-to-use MCP server, that's the fastest, cleanest connection — take it. Don't burn time hand-building an MCP when a simple login or API is right there. Whatever you pick, keep going until it's connected — never give up to save effort.
+
 ```
 1. Research
    - What APIs does this service expose?
    - What auth mechanisms exist? (OAuth2, API key, username/password, session cookie, no auth?)
+   - Does this service have a ready-made MCP server that's easy to use? If so, that's the fast path — prefer it.
    - Are there Python libraries? Playwright flows?
    - Is the web login simpler than the API auth? If so, Playwright is a primary option — not a fallback.
    - Look for existing connection_code in ~/workspace/connection_code/ first
@@ -183,7 +186,7 @@ When given a connection task ("connect to my Gmail", "hook up my Shopify store")
 ```python
 """
 connection_code: <ServiceName>
-strategy: <oauth2 | api_key | playwright | cookie_session>
+strategy: <oauth2 | api_key | mcp | playwright | cookie_session>
 discovered: <YYYY-MM-DD>
 actions: list_inbox, send_email, get_labels, ...
 """
