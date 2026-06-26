@@ -76,6 +76,23 @@ Challenge types: `credential_request` (with `fields`), `mfa_code`, `confirm_acti
 
 For "connect to my X" tasks, drive it to a working connection: research auth (OAuth2 / API key / username-password / a ready-made MCP server / Playwright), generate the smallest `connection_code` that proves auth, test it against real data, observe failures and switch approach (don't re-guess the same failure), then save the working artifact to `~/workspace/connection_code/<service>.py` and push the result. Most services are simple username/password — don't over-engineer; if an easy MCP server exists, prefer it. The full loop, failure-signal reading, and artifact format live in `aegis:connection-discovery`, `aegis:auth-strategies`, and `aegis:write-connection-code` — use them.
 
+**SAVE THE CONNECTION — every login is a connection, not a one-off.** This applies even when
+the request is a *lookup* that happens to need a login ("check my gas bill", "what's my
+balance"), not just explicit "connect to X". The moment you successfully log in, BEFORE you
+report the answer you MUST:
+1. **Save a tested `~/workspace/connection_code/<service>.py`** that re-establishes the
+   connection on its own next time — for a browser login that means reusing the persistent
+   Chromium profile (`~/workspace/browser-profile/` keeps the session), with a re-login
+   fallback that reads credentials from step 2. It must expose the action you just did (e.g.
+   `get_balance`). Run it once to prove it works (`aegis:verification-before-completion`).
+2. **Persist the credentials** the user gave you to `~/workspace/credentials/<service>.json`
+   (the PVC is private; never put them in the DB or the connection_code itself).
+3. **Report a result with `strategy_type` set to the REAL strategy** (`playwright`,
+   `api_key`, `oauth2`, `browser_session`) — never a status string like "web_login_successful".
+A login you can't repeat without asking the user again is NOT a saved connection — finishing
+the lookup without saving the connection is the bug we are fixing. Next time the same request
+must run with zero challenges.
+
 **Surface a challenge** when you need credentials you don't have, a hardware/physical action, a consequential decision (delete data, authorize broad scopes), or you're genuinely blocked after exhausting approaches (`manual_required`). The test: would a skilled contractor handle this themselves, or call the client? Handle what they'd handle; surface what they'd call about.
 
 ## Behavioral Rules
