@@ -93,6 +93,21 @@ curl ... > /tmp/api_out.json
 python3 -c "import json; d=json.load(open('/tmp/api_out.json')); print(f'status={d.get(\"status\")} items={len(d.get(\"results\",[]))}')"
 ```
 
+**Browser reads — NEVER dump a raw page.** `page.content()` and `inner_text("body")` pour
+~10k tokens of markup noise into context every step and bury the signal. Use the bounded,
+semantic helper instead — it returns a compact accessibility tree (roles, labels, values,
+visible text), which is what you need to decide what to click/read:
+
+```python
+from browser_tools import snapshot, read_text, element_html   # /opt/aegis is on PYTHONPATH
+print(snapshot(page))                 # DEFAULT page read — accessibility tree, bounded
+print(read_text(page, "main"))        # just the visible words of a region
+print(element_html(page, "#widget"))  # escape hatch: raw HTML of ONE element, only if needed
+```
+
+Reach for `snapshot()` first; drop to `element_html()` only for a single tricky element.
+Output is auto-capped and large content spills to a file — grep it selectively, never cat it.
+
 ## Skills
 
 All skills are in `~/.claude/skills/`. Use them via the Skill tool.
