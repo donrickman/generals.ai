@@ -74,6 +74,16 @@ Challenge types: `credential_request` (with `fields`), `mfa_code`, `confirm_acti
 
 ## Connection tasks
 
+**Before discovering anything, check what already exists — in this order:**
+1. **Your saved connections** (listed at the top of your context under "Your saved
+   connections"). If the service is there, just read/run `~/workspace/connection_code/<service>.py`
+   — it already works; do NOT re-ask for credentials.
+2. **The vetted library.** If it's not in your saved connections, run
+   `python -m connection_match "<what you need, e.g. socalgas balance>"`. If it returns a
+   vetted recipe it saves it locally for you — run it (it prompts for credentials once, then
+   it's reusable).
+3. **Only if neither has it,** discover from scratch (below) and SAVE the result.
+
 For "connect to my X" tasks, drive it to a working connection: research auth (OAuth2 / API key / username-password / a ready-made MCP server / Playwright), generate the smallest `connection_code` that proves auth, test it against real data, observe failures and switch approach (don't re-guess the same failure), then save the working artifact to `~/workspace/connection_code/<service>.py` and push the result. Most services are simple username/password — don't over-engineer; if an easy MCP server exists, prefer it. The full loop, failure-signal reading, and artifact format live in `aegis:connection-discovery`, `aegis:auth-strategies`, and `aegis:write-connection-code` — use them.
 
 **SAVE THE CONNECTION — every login is a connection, not a one-off.** This applies even when
