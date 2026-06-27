@@ -21,6 +21,9 @@ strategy: <oauth2 | api_key | browser_session | cookie_session>
 browser: <headed | headless | n/a>   # REQUIRED for browser_session — the mode that WORKED. If the
                                      # site bot-blocked headless and you switched to headed, this is
                                      # "headed". Reuse MUST take this same path or it gets blocked.
+auth: <password | oauth2 | email_code | magic_link | api_key | basic>   # the login method that WORKED
+                                     # (e.g. "password" if you logged in with email+password; "oauth2"
+                                     # if you used Sign-in-with-Google). Surfaced to the next agent.
 discovered: <YYYY-MM-DD>
 scope: <what auth scope was granted, or "n/a">
 actions:
