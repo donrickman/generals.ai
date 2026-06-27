@@ -24,10 +24,11 @@ browser: <headed | headless | n/a>   # REQUIRED for browser_session — the mode
 auth: <password | oauth2 | email_code | magic_link | api_key | basic>   # the login method that WORKED
                                      # (e.g. "password" if you logged in with email+password; "oauth2"
                                      # if you used Sign-in-with-Google). Surfaced to the next agent.
-usage_notes: <relative path to a per-user usage-notes .md, or "n/a">   # e.g. "aha_usage.md" — a
-                                     # LAZY-LOADED file (next to this recipe) capturing how THIS user
-                                     # uses the service. NOT loaded into context automatically; you
-                                     # read it only when you next act on this service. See below.
+preferences: <~/.claude/preferences/<service>.md, or "n/a">   # LINK ONLY to this app's per-user
+                                     # preference file (how THIS user uses the service). The file
+                                     # lives in ~/.claude/preferences/ and is LAZY: never auto-loaded;
+                                     # you read it only when acting on this service. Full mechanism:
+                                     # the aegis:application-preferences skill.
 discovered: <YYYY-MM-DD>
 scope: <what auth scope was granted, or "n/a">
 actions:
@@ -41,24 +42,6 @@ notes: |
   how verification arrived) so another user can REPLAY it with their own credentials — do NOT write
   a placeholder that just assumes the profile is already logged in.
 """
-
-# ─────────────────────────────────────────────────────────────────────────────
-# PER-USER USAGE NOTES — lazy-loaded learning, keep it cheap
-# ─────────────────────────────────────────────────────────────────────────────
-# Goal: get better at how THIS user uses a service over time, WITHOUT inflating the
-# always-loaded context (every turn re-reads the system prompt — that cache-read is the
-# enclave's dominant cost, so do NOT pour usage history into CLAUDE.md or memory).
-#
-# Instead, keep a per-service notes file next to the recipe, e.g. `aha_usage.md`, and point the
-# recipe's `usage_notes:` header at it. Rules:
-#   - It is LAZY: nothing auto-loads it. You READ it ONLY when you're about to act on this service
-#     (right after you load the recipe for reuse). That keeps its cost at zero on every other turn.
-#   - You UPDATE it as you learn how the user works — common requests, exact phrasing, preferred
-#     targets, shortcuts, "gotchas". Keep it terse and current; prune stale lines. Example for Aha:
-#         "User's projects live UNDER the 'Edge Ventures' product (top-level products = workstreams/
-#          clients). 80% of requests = add an idea or feature to a project. Prefers terse capture."
-#   - Treat it as a living skill for this one connection — it gets sharper every time the user uses
-#     the service, but it never sits in context unless you deliberately open it.
 
 import os
 import httpx  # or requests — whatever works
