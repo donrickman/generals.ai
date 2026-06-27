@@ -51,7 +51,13 @@ personal-account login — that just burns attempts on a path that doesn't exist
 **Use for:** any service with a web login — which is most personal accounts. This is the default,
 not a fallback. If you can see a login form, log in through it.
 
-Drive the browser via the Playwright MCP tools — never by writing Playwright Python in a Bash script. The persistent profile at `~/workspace/browser-profile/` means a logged-in session survives pod restarts.
+Drive the browser via the Playwright MCP tools — never by writing Playwright Python in a Bash script. The persistent profile means a logged-in session survives pod restarts.
+
+**Two browsers are available — pick per strategy (both baked in, no install needed):**
+- `mcp__playwright__browser_*` — **headless**, lighter and cheaper. Your default.
+- `mcp__playwright_headed__browser_*` — **headed** (real display via Xvfb), "looks real" to targets. **Escalate to this** when the headless browser is blocked by bot detection — e.g. a CAPTCHA, an "is this you / this browser may not be secure" interstitial, an automated-traffic block, or a login that silently fails only headless. Many hardened logins (Google sign-in, banks) need the headed browser; reaching for it is normal, not a failure.
+
+They use separate profiles, so a session in one is not shared with the other — when you switch, log in again in that browser and **record which browser worked** in the saved connection, so reuse takes the same path.
 
 Minimum viable probe:
 ```
