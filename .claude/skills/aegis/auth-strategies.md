@@ -1,6 +1,6 @@
 ---
 name: auth-strategies
-description: Use during connection discovery when deciding how to authenticate to a service. Covers how to research auth options, what to try first, how to read failure signals, and when to change strategy.
+description: Use during connection discovery when deciding how to authenticate to a service. Covers why the browser login is the default, when an API/OAuth path is actually worth it, how to read failure signals, and when to change strategy.
 ---
 
 # Auth Strategy: Research → Try → Read Signals → Adapt
@@ -14,12 +14,12 @@ Never write a complete auth module until you have a working minimal proof first.
 ## Step 0: Research Before Touching the Service
 
 Before any code, answer:
-1. Does this service have a public API? (search: `<service> API docs`, `<service> developer`)
-2. What auth methods does it advertise? (look for: OAuth2, API key, Basic auth, SSO, no auth)
-3. Is there a Python library for it? (search: `<service> python library pypi`)
-4. Has someone already solved this? (check `~/workspace/connection_code/` first)
+1. Has someone already solved this? (check `~/workspace/connection_code/` first)
+2. Is this the user's own account behind a normal web login? (utilities, email, banking, retail — almost always yes) → that's a browser login; start there.
+3. Only if a browser path is genuinely unworkable: does the service publish a real developer API for this account, and would it buy bulk/server-side filtering? (search: `<service> API docs`, `<service> developer`)
+4. Is there a Python library or a ready-made MCP server for it? (search: `<service> python library pypi`, `<service> MCP server`)
 
-The answers determine your starting point — not a fixed order of methods to try.
+The answers determine your starting point — and for a personal account that starting point is the browser, not a fixed sequence of API methods.
 
 ## Auth Method Signals
 
@@ -38,10 +38,47 @@ After your minimal probe, the response tells you what's actually happening:
 | Empty 200 | Auth worked but no data | Check if account has any data |
 | Connection refused | Wrong host or port | Verify base URL |
 
-## The Four Strategies — When to Try Each
+## The Strategies — Default to the Browser
 
-### Strategy 1: API Key / Bearer Token
-**Try first when:** Service has a developer portal, "API" section in settings, or mentions tokens in docs.
+Most Maven connections are the user's OWN account on a consumer service — utilities (SCE,
+SoCalGas), email, banking, retail. There is no developer API for "my SCE account"; those are
+browser logins. **Default to the browser.** Reach for an API/OAuth path ONLY when the service
+genuinely publishes a developer API for that account AND the task needs server-side filtering of
+a large dataset (e.g. searching a big mailbox). Do not probe REST/token endpoints first on a
+personal-account login — that just burns attempts on a path that doesn't exist for that account.
+
+### Strategy 1 (default): Browser Session (Playwright MCP tools)
+**Use for:** any service with a web login — which is most personal accounts. This is the default,
+not a fallback. If you can see a login form, log in through it.
+
+Drive the browser via the Playwright MCP tools — never by writing Playwright Python in a Bash script. The persistent profile at `~/workspace/browser-profile/` means a logged-in session survives pod restarts.
+
+Minimum viable probe:
+```
+mcp__playwright__browser_navigate(url="https://example.com")
+mcp__playwright__browser_snapshot()
+# Read the snapshot — check page URL/title for dashboard indicators (already logged in?)
+```
+
+If already logged in (the snapshot shows a dashboard/home page), the session is live — proceed to extract data.
+
+If the login page appears, read the field refs from the snapshot and fill them:
+```
+mcp__playwright__browser_snapshot()
+# identify email/password field refs, then:
+mcp__playwright__browser_type(element="email field", ref="<ref>", text=email)
+mcp__playwright__browser_type(element="password field", ref="<ref>", text=password)
+mcp__playwright__browser_click(element="submit button", ref="<ref>")
+mcp__playwright__browser_wait_for(...)
+mcp__playwright__browser_snapshot()   # confirm you reached the dashboard
+```
+
+When you hit MFA or a hardware key prompt: raise a challenge immediately — don't sit on it.
+
+Many SPAs load data from internal JSON endpoints. Check network requests before scraping the DOM. After navigating, use `browser_snapshot` to inspect what data is visible and what interactive elements exist.
+
+### Strategy 2: API Key / Bearer Token
+**Use when:** the service genuinely issues a developer key for THIS account (a developer portal / "API" section in settings) AND an API path is worth it for bulk or server-side filtering. Not for a plain consumer login — that has no key to issue.
 
 Minimum viable probe:
 ```python
@@ -59,8 +96,8 @@ Try header variants if first fails:
 - `Api-Key: <token>`
 - `?api_key=<token>` (query param)
 
-### Strategy 2: OAuth2
-**Try when:** Service has "Connect with <Service>", OAuth app registration, or explicit OAuth2 docs.
+### Strategy 3: OAuth2
+**Use when:** the service offers a real OAuth app registration / "Connect with <Service>" developer flow AND it buys server-side capability the browser can't. Browser redirects are awkward in the Enclave (see below), so prefer Strategy 1 for a plain login.
 
 Key questions to answer before writing code:
 - What are the authorization and token endpoints? (usually in docs under "OAuth" or "Authentication")
@@ -84,11 +121,6 @@ The Enclave can't receive browser redirects directly. Options:
 - For services that support it, use device flow or out-of-band codes
 
 If the service requires user authorization, raise a `confirm_action` or `credential_request` challenge via `mcp__aegis__raise_challenge` before starting the flow — don't silently open URLs.
-
-### Strategy 3: Browser Session (Playwright MCP tools)
-**Try when:** Strategies 1 and 2 fail, or the service has no API and only exposes data through its web UI.
-
-Drive the browser via the Playwright MCP tools — never by writing Playwright Python in a Bash script. The persistent profile at `~/workspace/browser-profile/` means a logged-in session survives pod restarts.
 
 Minimum viable probe:
 ```
@@ -131,9 +163,10 @@ print(r.status_code, r.text[:500])
 Switch when you see the **same failure type three times** from different angles. If 401s persist after trying all header variants and verifying the token format, the strategy itself is wrong — not the implementation.
 
 Switch order to consider:
-- API key failing → try OAuth2 (maybe the service requires app authorization)
-- OAuth2 unavailable → try browser automation via Playwright MCP tools
-- All automated paths blocked → raise `manual_required` challenge with exact steps for the user, then call `mcp__aegis__report_result(status="blocked", ...)`
+- Browser login failing on selectors/timing → re-snapshot and adjust refs (the page changed, the strategy didn't)
+- Browser login blocked by MFA / a hardware key → raise a challenge; don't abandon the browser path
+- Browser truly unusable (no web login, or a bot-wall you can't pass) → only THEN evaluate whether a real developer API exists for this account, and if so try API key / OAuth2
+- All paths blocked → raise `manual_required` challenge with exact steps for the user, then call `mcp__aegis__report_result(status="blocked", ...)`
 
 ## When to Stop and Surface a Challenge
 
@@ -145,7 +178,7 @@ Stop and ask when you need something only the user has:
 
 Don't stop for things you can resolve yourself:
 - Which header format to use (try them)
-- Whether to use OAuth or API key (try the simpler one first)
+- Which auth path to take (default to the browser login; only consider an API/OAuth if one genuinely exists for this account)
 - Rate limit backoff (handle it in code)
 - Installing a missing package (`pip install` it)
 
