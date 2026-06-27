@@ -57,7 +57,17 @@ Drive the browser via the Playwright MCP tools — never by writing Playwright P
 - `mcp__playwright__browser_*` — **headless**, lighter and cheaper. Your default.
 - `mcp__playwright_headed__browser_*` — **headed** (real display via Xvfb), "looks real" to targets. **Escalate to this** when the headless browser is blocked by bot detection — e.g. a CAPTCHA, an "is this you / this browser may not be secure" interstitial, an automated-traffic block, or a login that silently fails only headless. Many hardened logins (Google sign-in, banks) need the headed browser; reaching for it is normal, not a failure.
 
-They use separate profiles, so a session in one is not shared with the other — when you switch, log in again in that browser and **record which browser worked** in the saved connection, so reuse takes the same path.
+**When you hit a bot-wall, SWITCH to headed — do not fight it in headless.** A CAPTCHA / "select all
+the…" puzzle, an "are you human / this browser may not be secure" screen, *or a "check your email"
+verification screen where no email actually arrives* — these are all the headless browser being
+bot-detected. The correct move is NOT to solve the puzzle and NOT to ask the user for a code that was
+never sent. Immediately re-do the step in `mcp__playwright_headed__browser_*` (the headed browser
+usually gets no challenge at all). Only if the **headed** browser is *also* blocked do you stop and
+`raise_challenge(manual_required)` — don't keep grinding.
+
+They use separate profiles, so a session in one is not shared with the other — when you switch, log in
+again in that browser and **record which browser worked** (`browser: headed`/`headless`) in the saved
+connection, so reuse takes the same path.
 
 Minimum viable probe:
 ```

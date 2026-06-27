@@ -18,6 +18,9 @@ Use snake_case for the service name: `gmail.py`, `shopify.py`, `github.py`
 """
 connection_code: <ServiceName>
 strategy: <oauth2 | api_key | browser_session | cookie_session>
+browser: <headed | headless | n/a>   # REQUIRED for browser_session — the mode that WORKED. If the
+                                     # site bot-blocked headless and you switched to headed, this is
+                                     # "headed". Reuse MUST take this same path or it gets blocked.
 discovered: <YYYY-MM-DD>
 scope: <what auth scope was granted, or "n/a">
 actions:
@@ -27,6 +30,9 @@ actions:
 notes: |
   Any quirks, rate limits, known issues, or re-auth instructions.
   E.g. "Token expires every 60 minutes — re-call authenticate()"
+  For browser_session: record the EXACT login steps that worked (URL, fields, button, browser mode,
+  how verification arrived) so another user can REPLAY it with their own credentials — do NOT write
+  a placeholder that just assumes the profile is already logged in.
 """
 
 import os
