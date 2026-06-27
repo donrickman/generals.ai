@@ -34,14 +34,14 @@ Before writing a single line of code, answer these questions:
    - OAuth2 (standard web flow — good for services with official APIs)
    - API key (look in account settings → Developer → API Keys)
    - Username/password direct auth (basic auth header, or form-based login)
-   - Session cookie (Playwright logs in → extracts cookie → uses in requests)
+   - Browser session (Playwright MCP tools log in → session persists via browser profile)
    - No auth required (public data)
 
-   **Playwright is a primary strategy, not a fallback.** For any service with a web UI,
-   Playwright login is a valid first approach — especially when API access is locked down,
-   requires app registration, or the auth flow is easier to automate in a browser.
-   The persistent browser profile at `~/workspace/browser-profile/` means the user
-   authenticates once and stays logged in across pod restarts. Prefer Playwright early
+   **Browser automation is a primary strategy, not a fallback.** For any service with a web UI,
+   driving the browser via the Playwright MCP tools is a valid first approach — especially when
+   API access is locked down, requires app registration, or the auth flow is easier to automate
+   in a browser. The persistent browser profile at `~/workspace/browser-profile/` means the user
+   authenticates once and stays logged in across pod restarts. Prefer browser automation early
    when the service's web login is simpler than its API auth.
 
 3. **Are there existing examples?**
@@ -69,6 +69,13 @@ print(r.status_code, r.json())
 
 Run this immediately. Don't write the full module until you know auth works.
 
+For browser-based auth, navigate with the Playwright MCP tools and call `browser_snapshot` to read the page:
+
+```
+mcp__playwright__browser_navigate(url="https://example.com/login")
+mcp__playwright__browser_snapshot()   # read the page — accessibility tree, not raw HTML
+```
+
 ## Phase 3: Test and Observe
 
 Run the code. Read the response carefully.
@@ -82,45 +89,37 @@ Run the code. Read the response carefully.
 | 429 Too Many Requests | Rate limited | Add `time.sleep(1)`, retry with backoff |
 | 5xx | Service error | Wait 30s, retry once; then try different endpoint |
 | Connection refused | Wrong host/port | Verify base URL |
-| CAPTCHA or login wall | Need browser session | Switch to Playwright approach |
+| CAPTCHA or login wall | Need browser session | Switch to browser automation via Playwright MCP tools |
 
 ## Phase 4: Adapt
 
-Don't wait until 3 API failures before trying Playwright. If research shows the service
+Don't wait until 3 API failures before trying browser automation. If research shows the service
 has a simpler web login than an API auth flow, start there. Switch strategies as soon as
 you have evidence the current approach won't work — not after exhausting it.
 
-**API approach blocked → try Playwright:**
-```python
-from playwright.sync_api import sync_playwright
+**API approach blocked → try browser automation via Playwright MCP tools:**
 
-with sync_playwright() as p:
-    browser = p.chromium.launch_persistent_context(
-        "~/workspace/browser-profile/",
-        headless=False  # Xvfb handles the display
-    )
-    page = browser.new_page()
-    page.goto("https://example.com/login")
-    page.fill("#email", email)
-    page.fill("#password", password)
-    page.click('button[type="submit"]')
-    page.wait_for_url("**/dashboard")
-    # Now extract session cookies for subsequent requests
-    cookies = browser.cookies()
+```
+mcp__playwright__browser_navigate(url="https://example.com/login")
+mcp__playwright__browser_snapshot()
+# Read the snapshot to find the email/password field refs, then:
+mcp__playwright__browser_type(element="email field", ref="<ref from snapshot>", text=email)
+mcp__playwright__browser_type(element="password field", ref="<ref from snapshot>", text=password)
+mcp__playwright__browser_click(element="submit button", ref="<ref from snapshot>")
+mcp__playwright__browser_wait_for(...)
+mcp__playwright__browser_snapshot()   # confirm you reached the dashboard
 ```
 
-**Playwright blocked by MFA → surface challenge:**
-```bash
-curl -X POST "$AEGIS_API_URL/api/v1/session/agent_response" \
-  -H "X-Enclave-Key: $ENCLAVE_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "type": "challenge",
-    "challenge_type": "mfa_code",
-    "prompt": "I reached the MFA step. Please enter your 6-digit code.",
-    "context": "The browser is paused at the authenticator prompt."
-  }'
-# Wait for next /prompt call — it will contain the code
+Never write Playwright Python in a Bash heredoc. Use the MCP tools.
+
+**Browser automation blocked by MFA → raise a challenge:**
+
+```
+mcp__aegis__raise_challenge(
+    challenge_type="mfa_code",
+    prompt="I reached the two-factor authentication step. Please enter your 6-digit code."
+)
+# Stop here — the code arrives as the next /prompt call
 ```
 
 ## When to Stop and Surface a Challenge
@@ -136,6 +135,8 @@ Don't stop for things you can figure out yourself:
 - Whether to use OAuth vs. API key
 - Rate limit backoff timing
 - Installing a missing package
+
+Surface challenges via `mcp__aegis__raise_challenge` — never by printing JSON lines.
 
 ## Committing the Artifact
 
@@ -153,19 +154,17 @@ python ~/workspace/connection_code/<service>.py
 # Must print "✓ connected" or equivalent
 ```
 
-3. **Use `aegis:verification-before-completion` before pushing the result**
+3. **Use `aegis:verification-before-completion` before reporting the result**
 
-4. **Push result:**
-```bash
-curl -X POST "$AEGIS_API_URL/api/v1/session/agent_response" \
-  -H "X-Enclave-Key: $ENCLAVE_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "type": "result",
-    "success": true,
-    "summary": "Connected to <Service>. Strategy: <oauth2/api_key/playwright>. Available actions: <list>.",
-    "connection_code_path": "~/workspace/connection_code/<service>.py"
-  }'
+4. **Call `mcp__aegis__report_result` to end the task:**
+```
+mcp__aegis__report_result(
+    status="succeeded",
+    summary="Connected to <Service>. I can <list key actions>.",
+    service_name="<service>",
+    strategy_type="<oauth2 | api_key | playwright | browser_session>",
+    connection_code="<full module contents>"
+)
 ```
 
 ## If You Get Stuck
@@ -178,4 +177,4 @@ Use `superpowers:systematic-debugging`. The four phases apply directly:
 
 If 3+ approaches fail at the same layer, step back. The auth mechanism you assumed may not exist for this service — research again from scratch.
 
-**Final fallback:** If no automated path exists (service requires physical 2FA, enterprise SSO only, legal block), surface `manual_required` with specific instructions for what the user needs to do.
+**Final fallback:** If no automated path exists (service requires physical 2FA, enterprise SSO only, legal block), raise a `manual_required` challenge with specific instructions for what the user needs to do, then call `mcp__aegis__report_result(status="blocked", ...)`.

@@ -17,7 +17,7 @@ Use snake_case for the service name: `gmail.py`, `shopify.py`, `github.py`
 ```python
 """
 connection_code: <ServiceName>
-strategy: <oauth2 | api_key | playwright | cookie_session>
+strategy: <oauth2 | api_key | browser_session | cookie_session>
 discovered: <YYYY-MM-DD>
 scope: <what auth scope was granted, or "n/a">
 actions:
@@ -30,7 +30,7 @@ notes: |
 """
 
 import os
-import httpx  # or requests, or playwright — whatever works
+import httpx  # or requests — whatever works
 
 # ---------------------------------------------------------------------------
 # Auth
@@ -116,11 +116,14 @@ if __name__ == "__main__":
        token = access_token or os.getenv("GMAIL_ACCESS_TOKEN")
    ```
 
-3. **Browser profile** (for Playwright cookie sessions):
-   ```python
-   # The persistent browser profile at ~/workspace/browser-profile/ holds the session
-   # No credentials needed in code — just use the profile
-   browser = p.chromium.launch_persistent_context("~/workspace/browser-profile/")
+3. **Browser session** (for browser_session strategy):
+   ```
+   # The persistent browser profile holds the session via the Playwright MCP tools.
+   # The connection_code's authenticate() function navigates to the service URL and
+   # calls mcp__playwright__browser_snapshot() to verify the session is active.
+   # No credentials are needed in the Python code itself.
+   # Credentials are stored in ~/workspace/credentials/<service>.json (written by the
+   # enclave after first successful login — never stored in connection_code).
    ```
 
 Document which env vars are needed in the module docstring.
@@ -139,51 +142,45 @@ Use verb_noun pattern. Make it obvious what each function does:
 | `update_<resource>` | `update_order_status`, `update_contact` |
 | `delete_<resource>` | `delete_draft`, `delete_webhook` |
 
-## Playwright Pattern
+## Browser Session Pattern
 
-For services that require browser automation:
+For services that require browser automation, the Playwright MCP tools drive the browser.
+Do NOT write Playwright Python in connection_code — the MCP tools are the browser interface.
+
+The connection_code for a browser_session service documents the MCP tool sequence and
+wraps any HTTP extractions (using the session cookies captured after browser login):
 
 ```python
-import os
-from playwright.sync_api import sync_playwright, BrowserContext
+"""
+connection_code: ExampleSite
+strategy: browser_session
+discovered: 2026-06-26
+scope: n/a
+actions:
+  - verify_session() -> bool      # True if browser session is still active
+  - get_balance() -> dict         # scrape balance from dashboard
+notes: |
+  Driven via Playwright MCP tools (mcp__playwright__browser_*).
+  After first login, session persists in browser profile across pod restarts.
+  Credentials stored in ~/workspace/credentials/examplesite.json.
+  If verify_session returns False, re-run the login flow (see discovery notes).
+"""
 
-PROFILE_DIR = os.path.expanduser("~/workspace/browser-profile/example")
+# This module documents the browser actions — call them via the MCP tools in your session.
+# There is no runnable Python here for the browser; the MCP server handles it.
 
-def authenticate() -> BrowserContext:
-    """
-    Return a persistent browser context with active session.
-    On first run: completes login flow.
-    On subsequent runs: resumes from saved profile (cookies/localStorage).
-    """
-    p = sync_playwright().start()
-    context = p.chromium.launch_persistent_context(
-        PROFILE_DIR,
-        headless=False,  # Xvfb handles display — don't change this
-        args=["--no-sandbox", "--disable-dev-shm-usage"],
-    )
-    page = context.new_page()
-    page.goto("https://example.com")
-    
-    # Check if already logged in
-    if "dashboard" in page.url:
-        return context
-    
-    # Login flow
-    email = os.getenv("EXAMPLE_EMAIL")
-    password = os.getenv("EXAMPLE_PASSWORD")
-    page.fill('input[type="email"]', email)
-    page.fill('input[type="password"]', password)
-    page.click('button[type="submit"]')
-    page.wait_for_url("**/dashboard", timeout=15000)
-    
-    return context
+DASHBOARD_URL = "https://example.com/dashboard"
+LOGIN_URL = "https://example.com/login"
 
+# To verify session is active:
+#   mcp__playwright__browser_navigate(url=DASHBOARD_URL)
+#   snap = mcp__playwright__browser_snapshot()
+#   check if snap contains dashboard indicators (not the login page)
 
-def scrape_data(context: BrowserContext) -> list[dict]:
-    """Extract data from the dashboard."""
-    page = context.new_page()
-    page.goto("https://example.com/data")
-    # ... scrape logic
+# To get balance:
+#   mcp__playwright__browser_navigate(url=DASHBOARD_URL)
+#   snap = mcp__playwright__browser_snapshot()
+#   parse balance from the snapshot accessibility tree
 ```
 
 ## Rate Limiting
@@ -207,9 +204,10 @@ def _get_with_backoff(client, url, max_retries=3):
 
 ## Testing Requirements
 
-Before pushing a result, you MUST:
+Before calling `mcp__aegis__report_result`, you MUST:
 
 1. Run `python ~/workspace/connection_code/<service>.py` and see it complete without errors
+   (for browser_session modules: manually walk the MCP tool sequence and confirm the session is live)
 2. Verify at least one read action returned real data (not empty)
 3. If write actions exist, test them and clean up (delete test records you created)
 4. Use `superpowers:verification-before-completion` — no completion claims without evidence

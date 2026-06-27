@@ -33,8 +33,8 @@ After your minimal probe, the response tells you what's actually happening:
 | 403 | Right credential, wrong permission level | Check account tier or app permissions |
 | 404 on `/me` or `/user` | Wrong base URL or API version | Check docs for current version |
 | 429 | Rate limited on first call | Suspicious — check if auth even worked |
-| CAPTCHA page in response body | Bot detection, not an API | Consider Playwright |
-| HTML login page returned | Service doesn't have a public API at this endpoint | Try different endpoint or Playwright |
+| CAPTCHA page in response body | Bot detection, not an API | Use browser automation via Playwright MCP tools |
+| HTML login page returned | Service doesn't have a public API at this endpoint | Try different endpoint or browser automation |
 | Empty 200 | Auth worked but no data | Check if account has any data |
 | Connection refused | Wrong host or port | Verify base URL |
 
@@ -83,44 +83,36 @@ The Enclave can't receive browser redirects directly. Options:
 - Use `run_console()` flow (prints URL, user pastes back the code) — surface as a challenge
 - For services that support it, use device flow or out-of-band codes
 
-If the service requires user authorization, surface a `confirm_action` or `credential_request` challenge before starting the flow — don't silently open URLs.
+If the service requires user authorization, raise a `confirm_action` or `credential_request` challenge via `mcp__aegis__raise_challenge` before starting the flow — don't silently open URLs.
 
-### Strategy 3: Browser Session (Playwright)
+### Strategy 3: Browser Session (Playwright MCP tools)
 **Try when:** Strategies 1 and 2 fail, or the service has no API and only exposes data through its web UI.
 
-Use the persistent profile at `~/workspace/browser-profile/<service>/` — this means a logged-in session survives pod restarts.
+Drive the browser via the Playwright MCP tools — never by writing Playwright Python in a Bash script. The persistent profile at `~/workspace/browser-profile/` means a logged-in session survives pod restarts.
 
 Minimum viable probe:
-```python
-from playwright.sync_api import sync_playwright
-import os
-
-with sync_playwright() as p:
-    ctx = p.chromium.launch_persistent_context(
-        os.path.expanduser("~/workspace/browser-profile/<service>"),
-        headless=False, args=["--no-sandbox"]
-    )
-    page = ctx.new_page()
-    page.goto("https://example.com")
-    print("URL after load:", page.url)
-    print("Title:", page.title())
-    ctx.close()
+```
+mcp__playwright__browser_navigate(url="https://example.com")
+mcp__playwright__browser_snapshot()
+# Read the snapshot — check page URL/title for dashboard indicators (already logged in?)
 ```
 
-Check if already logged in before attempting login. Read the page URL and look for dashboard/home indicators.
+If already logged in (the snapshot shows a dashboard/home page), the session is live — proceed to extract data.
 
-When you hit MFA or a hardware key prompt: surface a challenge immediately — don't sit on it.
-
-Many SPAs load data from internal JSON endpoints. Check network requests before scraping DOM:
-```python
-def capture_api_calls(page, target_path):
-    captured = []
-    page.on("response", lambda r: captured.append(r.json())
-            if target_path in r.url and r.status == 200 else None)
-    page.goto("https://example.com/data")
-    page.wait_for_load_state("networkidle")
-    return captured
+If the login page appears, read the field refs from the snapshot and fill them:
 ```
+mcp__playwright__browser_snapshot()
+# identify email/password field refs, then:
+mcp__playwright__browser_type(element="email field", ref="<ref>", text=email)
+mcp__playwright__browser_type(element="password field", ref="<ref>", text=password)
+mcp__playwright__browser_click(element="submit button", ref="<ref>")
+mcp__playwright__browser_wait_for(...)
+mcp__playwright__browser_snapshot()   # confirm you reached the dashboard
+```
+
+When you hit MFA or a hardware key prompt: raise a challenge immediately — don't sit on it.
+
+Many SPAs load data from internal JSON endpoints. Check network requests before scraping the DOM. After navigating, use `browser_snapshot` to inspect what data is visible and what interactive elements exist.
 
 ### Strategy 4: Basic Auth or No Auth
 **Try when:** Service docs mention HTTP Basic Auth, or endpoint is documented as public.
@@ -140,8 +132,8 @@ Switch when you see the **same failure type three times** from different angles.
 
 Switch order to consider:
 - API key failing → try OAuth2 (maybe the service requires app authorization)
-- OAuth2 unavailable → try browser session
-- All automated paths blocked → surface `manual_required` with exact steps for the user
+- OAuth2 unavailable → try browser automation via Playwright MCP tools
+- All automated paths blocked → raise `manual_required` challenge with exact steps for the user, then call `mcp__aegis__report_result(status="blocked", ...)`
 
 ## When to Stop and Surface a Challenge
 
@@ -157,10 +149,12 @@ Don't stop for things you can resolve yourself:
 - Rate limit backoff (handle it in code)
 - Installing a missing package (`pip install` it)
 
+Raise challenges via `mcp__aegis__raise_challenge` — never by printing JSON lines.
+
 ## After You Have a Working Minimal Proof
 
 Only after the minimal probe returns real data:
 1. Check `aegis:write-connection-code` for the artifact format
 2. Build out the action functions one at a time, verifying each
 3. Write the self-test block
-4. Run it end-to-end before reporting success
+4. Run it end-to-end before reporting success via `mcp__aegis__report_result`

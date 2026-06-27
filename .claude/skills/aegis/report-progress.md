@@ -1,38 +1,25 @@
 ---
 name: report-progress
-description: Use when pushing any communication back to the Aegis API — progress updates, challenges, results, errors. Covers all webhook patterns and when to use each.
+description: Use when pushing any communication back to the Aegis API — progress updates, challenges, results, errors. Covers all tool call patterns and when to use each.
 ---
 
 # Reporting Progress to Aegis
 
 ## Overview
 
-All outbound communication from the Enclave goes to:
-```
-POST $AEGIS_API_URL/api/v1/session/agent_response
-X-Pod-API-Key: $ENCLAVE_API_KEY
-Content-Type: application/json
-```
+All outbound communication from the Enclave is sent by calling the `mcp__aegis__*` tools directly. There is no JSON to print, no curl to run, no stdout scraping — calling the tool IS the event. The runtime wires these tools to the Aegis API automatically.
 
-Never go silent. The user's app is watching for events from this endpoint. A silent Enclave looks like a crashed one.
+Never go silent. The user's app is watching for events. A silent Enclave looks like a crashed one. A task that ends without calling `mcp__aegis__report_result` is treated as a failure.
 
 ## Message Types
 
 ### Progress update — let the user know you're alive
 
-Send every few minutes during long-running work, and at every meaningful milestone.
+Call at every meaningful milestone and at least every 3 minutes during long-running work.
 
-```bash
-curl -s -X POST "$AEGIS_API_URL/api/v1/session/agent_response" \
-  -H "X-Pod-API-Key: $ENCLAVE_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d "{
-    \"user_id\": \"$ENCLAVE_USER_ID\",
-    \"type\": \"progress\",
-    \"data\": {
-      \"message\": \"Found OAuth2 endpoint — testing token exchange...\"
-    }
-  }"
+```
+mcp__aegis__report_progress(message="Found OAuth2 endpoint — testing token exchange.")
+mcp__aegis__report_progress(message="GitHub API returned 401. Scope is missing. Adding repo scope and retrying.")
 ```
 
 Good progress messages are specific: what you found, what you're trying next.
@@ -42,141 +29,86 @@ Write as Maven — warm, direct, brief, spoken out loud. Plain text only. No mar
 
 ### Challenge — need user input
 
-Raise a challenge when you need something only the user can provide. The user's app surfaces this as an interactive prompt. Their response comes back as the next `POST /prompt` starting with `"Challenge response received."`.
+Raise a challenge when you need something only the user can provide. The user's app surfaces this as an interactive prompt. Their response comes back as the next `POST /prompt` starting with "Challenge response received."
 
-```bash
-curl -s -X POST "$AEGIS_API_URL/api/v1/session/agent_response" \
-  -H "X-Pod-API-Key: $ENCLAVE_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d "{
-    \"user_id\": \"$ENCLAVE_USER_ID\",
-    \"type\": \"challenge\",
-    \"challenge_type\": \"credential_request\",
-    \"data\": {
-      \"challenge_type\": \"credential_request\",
-      \"prompt\": \"I need your Shopify API key. You can generate one at Settings → Apps → Private apps → Create private app.\",
-      \"context\": \"Shopify's storefront API requires an admin API key for the actions you want.\"
-    }
-  }"
+```
+mcp__aegis__raise_challenge(
+    challenge_type="credential_request",
+    prompt="I need your Shopify API key. You can generate one in your Shopify admin under Settings, then Apps, then Private apps.",
+    fields=[
+        {"name": "api_key", "label": "API Key", "secure": true}
+    ]
+)
+
+mcp__aegis__raise_challenge(challenge_type="mfa_code", prompt="I reached the two-factor authentication step. Please enter your 6-digit code.")
+
+mcp__aegis__raise_challenge(challenge_type="confirm_action", prompt="This will permanently delete 47 emails from your trash. Should I proceed?")
+
+mcp__aegis__raise_challenge(
+    challenge_type="choice_required",
+    prompt="I found two accounts. Which one should I connect?",
+    options=["work@company.com", "personal@gmail.com"]
+)
+
+mcp__aegis__raise_challenge(challenge_type="manual_required", prompt="GitHub returned 403. Your token lacks the repo scope. Please regenerate it at github.com/settings/tokens with that scope enabled, then let me know.")
 ```
 
 **Challenge types:**
 
 | Type | Use when |
 |---|---|
-| `credential_request` | Need API key, password, secret token |
+| `credential_request` | Need API key, password, secret token — always supply `fields` |
 | `mfa_code` | Reached MFA prompt — need 6-digit code or similar |
 | `confirm_action` | About to take an irreversible action — need explicit approval |
-| `choice_required` | Multiple valid approaches — let user decide |
+| `choice_required` | Multiple valid approaches — let user decide — supply `options` |
 | `manual_required` | Fully blocked — needs user to do something manually |
 
-The `prompt` field is spoken aloud by TTS — plain conversational text only. No markdown, no URLs, no lists.
+The `prompt` is spoken aloud by TTS — plain conversational text only. No markdown, no URLs, no lists.
 
-**After pushing a challenge: stop.** The user's response arrives as the next `/prompt` call with `--continue` context.
+**After raising a challenge: stop.** The user's response arrives as the next `/prompt` call.
 
 ### Result — task complete
 
-Push when you have confirmed, working connection_code.
+Call `mcp__aegis__report_result` when you have confirmed, working results. This is TERMINAL — the task ends here.
 
-```bash
-curl -s -X POST "$AEGIS_API_URL/api/v1/session/agent_response" \
-  -H "X-Pod-API-Key: $ENCLAVE_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d "{
-    \"user_id\": \"$ENCLAVE_USER_ID\",
-    \"type\": \"result\",
-    \"data\": {
-      \"success\": true,
-      \"service_name\": \"shopify\",
-      \"strategy_type\": \"api_key\",
-      \"connection_code_path\": \"~/workspace/connection_code/shopify.py\",
-      \"connection_code\": \"<full Python module contents>\",
-      \"action_schemas\": [
-        {\"name\": \"list_orders\", \"description\": \"List recent orders\", \"params\": {}},
-        {\"name\": \"get_order\", \"description\": \"Get a specific order by ID\", \"params\": {\"order_id\": \"string\"}}
-      ],
-      \"source_context\": \"Connected to shop: my-store.myshopify.com. Plan: Basic. Products: 47 active.\",
-      \"summary\": \"Connected to your Shopify store. I can list orders, look up specific orders, and check your product inventory.\"
-    }
-  }"
+```
+mcp__aegis__report_result(
+    status="succeeded",
+    summary="Connected to your Shopify store. I can list orders, look up specific orders, and check your product inventory.",
+    service_name="shopify",
+    strategy_type="api_key",
+    connection_code="<full Python module contents>"
+)
 ```
 
-`source_context` is injected into Maven's system prompt for future voice sessions — write it as factual, dense context about the account (IDs, counts, plan tier, notable facts). Not a summary for the user.
+`status` values:
+- `"succeeded"` — task completed successfully
+- `"failed"` — every approach was exhausted with no success
+- `"blocked"` — a manual_required blocker stopped work; raise the challenge first, then report blocked
 
 `summary` is spoken aloud by Maven — plain speech, no markdown.
 
-**Do not push a result until you have run the connection_code and seen it succeed.**
+`source_context` (optional) is injected into Maven's system prompt for future voice sessions — write it as factual, dense context about the account (IDs, counts, plan tier, notable facts). Not a summary for the user.
+
+**Do not call report_result until you have run the connection_code and seen it succeed.**
 
 ### Error — unrecoverable failure
 
-```bash
-curl -s -X POST "$AEGIS_API_URL/api/v1/session/agent_response" \
-  -H "X-Pod-API-Key: $ENCLAVE_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d "{
-    \"user_id\": \"$ENCLAVE_USER_ID\",
-    \"type\": \"challenge\",
-    \"challenge_type\": \"manual_required\",
-    \"data\": {
-      \"challenge_type\": \"manual_required\",
-      \"prompt\": \"GitHub returned 403 — your token doesn't have the required repo scope. Please regenerate with that scope enabled at github.com/settings/tokens.\"
-    }
-  }"
-```
+Use `mcp__aegis__raise_challenge` with `challenge_type="manual_required"` for hard blockers, then call `mcp__aegis__report_result(status="blocked", ...)`.
 
-Use `manual_required` challenge type for hard blockers. Describe exactly what the user needs to do.
+```
+mcp__aegis__raise_challenge(
+    challenge_type="manual_required",
+    prompt="GitHub returned 403. Your token lacks the required repo scope. Please regenerate it at github.com/settings/tokens with that scope enabled."
+)
+mcp__aegis__report_result(status="blocked", summary="I need you to update your GitHub token before I can continue.")
+```
 
 ## Cadence Rules
 
-- **Long-running tasks:** Push a progress update at least every 3 minutes
-- **Milestones:** Push immediately when you discover something significant (found API, auth worked, MFA prompt appeared)
-- **Blocks:** Push a challenge immediately — don't hold it
-- **Completion:** Push result immediately when done
-- **Between sessions:** If resuming, push a brief progress update so the user knows you're back
-
-## Python Helper
-
-```python
-import os, json, time
-import httpx
-
-EVENT_LOG = "/data/events.jsonl"
-
-def _write_event_log(type: str, data: dict, challenge_type: str = None):
-    """Append event to local log so take_action polling can pick it up."""
-    event = {
-        "seq": int(time.time() * 1000),
-        "type": type,
-        "data": data,
-    }
-    if challenge_type:
-        event["challenge_type"] = challenge_type
-    try:
-        with open(EVENT_LOG, "a") as f:
-            f.write(json.dumps(event) + "\n")
-    except Exception:
-        pass  # non-fatal — don't break the main push path
-
-def report(type: str, data: dict, challenge_type: str = None):
-    """Write to local event log and push to the Aegis API."""
-    _write_event_log(type, data, challenge_type)
-    payload = {
-        "user_id": os.getenv("ENCLAVE_USER_ID"),
-        "type": type,
-        "data": data,
-    }
-    if challenge_type:
-        payload["challenge_type"] = challenge_type
-    r = httpx.post(
-        f"{os.getenv('AEGIS_API_URL')}/api/v1/session/agent_response",
-        json=payload,
-        headers={"X-Pod-API-Key": os.getenv("ENCLAVE_API_KEY")},
-        timeout=10,
-    )
-    r.raise_for_status()
-
-# Usage:
-report("progress", {"message": "Testing OAuth2 token exchange..."})
-report("challenge", {"challenge_type": "mfa_code", "prompt": "Enter your 2FA code:"}, challenge_type="mfa_code")
-report("result", {"success": True, "service_name": "gmail", "strategy_type": "oauth", "summary": "Connected to Gmail.", "source_context": "...", "connection_code": "...", "message": "Connected to Gmail successfully."})
-```
+- **Long-running tasks:** Call `report_progress` at least every 3 minutes
+- **Milestones:** Call immediately when you discover something significant (found API, auth worked, MFA prompt appeared)
+- **Blocks:** Raise a challenge immediately — don't hold it
+- **Completion:** Call `report_result` immediately when done
+- **Between sessions:** If resuming, call `report_progress` briefly so the user knows you're back
+- **End of every task:** Call `report_result`. Always. No exceptions.
