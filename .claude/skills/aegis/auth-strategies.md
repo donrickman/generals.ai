@@ -23,19 +23,20 @@ quick look at its docs:
   there usually isn't one; that's a browser login, so start there.
 
 ## What you have to work with
-- **Two browsers, both baked in**, driven via the Playwright MCP tools (never Playwright-in-Bash):
-  `mcp__playwright__browser_*` (headless — lighter, cheaper) and `mcp__playwright_headed__browser_*`
-  (headed, real display — "looks real" to a target). Headed exists for logins a headless browser
-  can't clear; reaching for it is an ordinary judgment call, not a failure or a last resort. The two
-  keep separate profiles, so log in again when you switch, and record which one worked in the saved
-  recipe so reuse takes the same path.
+- **A browser** — headed, on a real display, driven via the Playwright MCP tools
+  (`mcp__playwright__browser_*`; never Playwright-in-Bash). It is a real, visible browser, so it is
+  not flagged the way a headless one is — that's why bot-hostile logins work here at all. It keeps a
+  persistent profile, so a login survives pod restarts and every later action for that service reuses
+  the same session. (There is no headless option — everything is headed, one profile.)
 - **API key / OAuth2 / basic auth** for services that genuinely expose a developer API worth using.
 
 ## Read what the service tells you, and adapt
-The response is the signal. A dashboard means you're in. A login form means log in. A CAPTCHA, an
-"is this you / this browser may not be secure" screen, or a login that only fails automated is the
-service telling you a plain automated browser won't do — so meet it with a more convincing one, or a
-different path, per your read. Trust your judgment over any sequence.
+The response is the signal. A dashboard means you're in. A login form means log in. But a CAPTCHA, an
+"is this you / this browser may not be secure" screen, or a "wrong password" that repeats on
+credentials you have no real reason to doubt is the service **blocking automation** — not a bad
+password. The browser is already the real-looking one, so re-asking for credentials won't change it:
+try a genuinely different path if one exists, or stop and tell the user plainly that this login can't
+be automated. Do not loop on the same credential prompt.
 
 ## Ask the user only for what only they can provide
 Raise a challenge (`mcp__aegis__raise_challenge`) — and wait — for the things that are genuinely
