@@ -12,6 +12,13 @@ contact. Use what you know and what the service shows you.
 ## Size it up first — don't just start clicking
 Before you touch the service, judge the smartest way in, from what you already know about it plus a
 quick look at its docs:
+- **Are you logging the user in, or building an integration?** "Connect my X" means log in as the
+  *user* — with the account they already have, via the browser session (or a token / app password
+  they copy from their own settings). It does NOT mean registering a developer OAuth app, creating a
+  cloud project, or minting API client credentials on their behalf: that's a different job they didn't
+  ask for, it's slow, and it's usually blocked from an automated browser. If you find yourself heading
+  to a service's *developer console* to connect the user's own account, that's the wrong branch — log
+  them in as themselves.
 - **You already know a lot.** You know which services are ordinary consumer logins, which publish a
   real developer API, and which are notoriously hard or anti-automation. Let that steer your opening
   move — pick the approach most likely to work up front instead of defaulting to one and discovering
