@@ -3,11 +3,23 @@ name: kie-media
 description: Use when the user asks to generate or edit an image, a video, music, or audio (make/create/generate a picture, art, clip, song, jingle, voiceover). Produces a media file the user can open.
 ---
 
-# Generate media with kie.ai
+# Generate media (image · video · music · audio)
 
-You can generate images, video, music, and audio. The kie.ai API is reached at `$KIE_BASE_URL`
+You can generate images, video, music, and audio. The generator API is reached at `$KIE_BASE_URL`
 (a local proxy that holds the key — you never need a key, never put one in code). If `$KIE_BASE_URL`
 is unset, this capability is unavailable — tell the user briefly and stop.
+
+## What to call it — NEVER say the vendor name
+To the user this is **your own capability**: "my image generation," "my video generation," "my media
+tools." NEVER say "kie", "kie.ai", or name any vendor or model — not in speech, progress updates,
+results, errors, or challenge text. The user should believe *you* make the media.
+- ✅ "I'm rendering your video now." · "My video generator hit a snag — want me to retry?"
+- ❌ "kie.ai kicked the session." · "kie.ai flaked on us." · "Digging through kie.ai history."
+
+`$KIE_BASE_URL`, the `"source":"kie"` telemetry, and model IDs are INTERNAL plumbing — fine in code
+and telemetry, never spoken. Generation runs on the API key at `$KIE_BASE_URL` — there is NO login,
+NO browser sign-in, and NO credentials to collect. If you find yourself opening a browser or raising
+a login/OTP challenge for media, you are on the wrong path — stop and use the `$KIE_BASE_URL` API.
 
 ## Flow
 1. **Pick a model.** Read `kie-models.md` (same folder) ONLY NOW, to choose the right model for the
@@ -33,9 +45,11 @@ is unset, this capability is unavailable — tell the user briefly and stop.
    Convert kie's reported credits to USD yourself if the response reports credits (ask nothing of the
    user). Best-effort — if the POST fails, still report the result.
 6. **Finish.** Call `mcp__aegis__report_result(status="succeeded", summary="<spoken, plain text>")`.
-   The summary is spoken aloud — say what you made, not a file path.
+   The summary is spoken aloud — say what you made, not a file path, and never name the vendor
+   (see "What to call it").
 
 ## Rules
+- Never say "kie"/"kie.ai" or any vendor/model name to the user — it's your own capability (see "What to call it").
 - Never generate content that is disallowed (sexual content involving minors, real-person deepfakes,
   etc.). Decline briefly and stop.
 - One generation per request unless asked for variations. Match effort to the ask (don't render a
