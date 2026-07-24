@@ -22,8 +22,12 @@ NO browser sign-in, and NO credentials to collect. If you find yourself opening 
 a login/OTP challenge for media, you are on the wrong path — stop and use the `$KIE_BASE_URL` API.
 
 ## Flow
-1. **Pick a model.** Read `kie-models.md` (same folder) ONLY NOW, to choose the right model for the
-   request (image vs video vs music, quality vs speed/cost). Do not read it otherwise.
+1. **Pick a model — default to the cheapest, fastest one that can do the job.** Read `kie-models.md`
+   (same folder) ONLY NOW. Always start from the cheap/fast tier (e.g. a Lite image model). Do NOT
+   reach for premium/pro/ultra or slow models on your own — this is shared, company-paid compute.
+   Only use a pricier model if the user *explicitly* asked for that model or that quality. If the
+   user wants consistently higher-end generation, tell them they can connect their own media account
+   (their own kie.ai or provider key) rather than us defaulting to expensive models.
 2. **Create the task.** POST the model's create-task endpoint at `$KIE_BASE_URL` with the prompt and
    parameters. You get back a `task_id`. A 200 means *created*, not done.
 3. **Poll for completion.** GET the query-record endpoint with the `task_id`, backing off (e.g. 3s,
@@ -42,8 +46,9 @@ a login/OTP challenge for media, you are on the wrong path — stop and use the 
           "data":{"cost_usd": <USD>, "service":"kie", "method":"api_key",
                   "model":"<model id>", "task_id":"<task id>"}}'
    ```
-   Convert kie's reported credits to USD yourself if the response reports credits (ask nothing of the
-   user). Best-effort — if the POST fails, still report the result.
+   `record-info` does NOT include a cost field — set `cost_usd` from the model you used: its fixed
+   credit price (see kie.ai/pricing / the catalog) converted to USD. Ask the user nothing about cost.
+   Best-effort — if the POST fails, still report the result.
 6. **Finish.** Call `mcp__aegis__report_result(status="succeeded", summary="<spoken, plain text>")`.
    The summary is spoken aloud — say what you made, not a file path, and never name the vendor
    (see "What to call it").

@@ -3,13 +3,25 @@
 kie.ai fronts many upstream models at 30–80% below official pricing. Base URL is `$KIE_BASE_URL`
 (the local proxy — never a key). All generation is async: create a task → poll the query-record
 endpoint with the returned `task_id` → download the output URL. Each model has its own parameters;
-the authoritative per-model request/response shape (exact create-task path, params, and the credit
-cost field on the record) is at **https://docs.kie.ai/market/quickstart** and the model's own page.
-Confirm the exact endpoint/params for the model you pick from those docs before calling — do not
-guess parameter names.
+the authoritative per-model request/response shape (exact create-task path, params) is at
+**https://docs.kie.ai/market/quickstart** and the model's own page. Confirm the exact endpoint/params
+for the model you pick from those docs before calling — do not guess parameter names.
 
-Pick the cheapest model that meets the request. Prices and the model list drift; when unsure, prefer
-a cheaper/faster model and only escalate to a pro/ultra model if the result is inadequate.
+## DEFAULT TO CHEAP + FAST (this is a hard rule, not a preference)
+This is shared, company-paid compute. **Always default to the cheapest, fastest model that can
+plausibly do the job** — a Lite/fast image model, a short cheap video model, a fast TTS. Do NOT pick
+a pro/ultra/premium or a slow model unless the user *explicitly* named it or asked for that quality.
+If a user wants consistently high-end output, say they can connect their own media account (their own
+kie.ai or provider key) — we do not default to expensive models on their behalf.
+
+Recommended cheap defaults by type: **image →** Seedream Lite (or imagen4-fast / Nano Banana);
+**video →** Wan (short) over Veo/Runway premium; **speech/audio →** ElevenLabs turbo TTS. Avoid
+4o Image as a default — it is both pricier and slow. Escalate ONLY on an explicit request, and even
+then prefer the lowest tier that meets it.
+
+Cost note: kie's `record-info` does NOT report per-task cost. Cost is attributed per-model (each
+model has a fixed credit price on kie.ai/pricing) — report that model's price in the telemetry call.
+`GET /api/v1/chat/credit` returns the remaining account balance if you need a pre-flight check.
 
 ## Images (text→image, and image edit)
 | Model | Good for | Notes |
