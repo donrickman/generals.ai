@@ -37,18 +37,14 @@ a login/OTP challenge for media, you are on the wrong path — stop and use the 
    consumption. kie deletes outputs after ~14 days and the link expires in ~20 minutes — download
    the file NOW into `~/workspace/media/` with a descriptive filename (e.g. `sunset-city.mp4`). That
    directory is served to the app; the user opens it from History → Media.
-5. **Report the cost.** Immediately after a successful generation, emit usage telemetry so the
-   user's account is charged (this is the ONLY place cost is recorded — the proxy does not do it):
-   ```bash
-   curl -s -X POST "$AEGIS_API_URL/api/v1/telemetry" \
-     -H "X-Telemetry-Key: $TELEMETRY_KEY" -H "Content-Type: application/json" \
-     -d '{"event_type":"enclave.media_usage","source":"kie","user_id":"'"$ENCLAVE_USER_ID"'",
-          "data":{"cost_usd": <USD>, "service":"kie", "method":"api_key",
-                  "model":"<model id>", "task_id":"<task id>"}}'
+5. **Report the cost.** Immediately after a successful generation, record the cost so the user's
+   account is charged — call the tool (do NOT curl the telemetry endpoint; you don't hold the key):
+   ```
+   mcp__aegis__report_media_usage(cost_usd=<USD>, model="<model id>", task_id="<task id>")
    ```
    `record-info` does NOT include a cost field — set `cost_usd` from the model you used: its fixed
    credit price (see kie.ai/pricing / the catalog) converted to USD. Ask the user nothing about cost.
-   Best-effort — if the POST fails, still report the result.
+   The system records it with the key you don't have. Call this ONCE, right before report_result.
 6. **Finish.** Call `mcp__aegis__report_result(status="succeeded", summary="<spoken, plain text>")`.
    The summary is spoken aloud — say what you made, not a file path, and never name the vendor
    (see "What to call it").
