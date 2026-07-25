@@ -50,6 +50,10 @@ a login/OTP challenge for media, you are on the wrong path — stop and use the 
    (see "What to call it").
 
 ## Rules
+- **ONLY generate via the `$KIE_BASE_URL` API. NEVER draw or render the media yourself with code
+  (PIL, matplotlib, SVG, HTML canvas, ffmpeg-synthesized frames) and NEVER web-search for or
+  download an existing image/clip. A hand-drawn or downloaded file is NOT a generation — it is a
+  wrong answer. If the API fails or you can't reach it, report failure honestly; do not substitute.**
 - Never say "kie"/"kie.ai" or any vendor/model name to the user — it's your own capability (see "What to call it").
 - Never generate content that is disallowed (sexual content involving minors, real-person deepfakes,
   etc.). Decline briefly and stop.
