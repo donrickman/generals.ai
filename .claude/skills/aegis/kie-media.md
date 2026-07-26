@@ -30,14 +30,30 @@ a login/OTP challenge for media, you are on the wrong path — stop and use the 
    (their own kie.ai or provider key) rather than us defaulting to expensive models.
 2. **Create the task.** POST the model's create-task endpoint at `$KIE_BASE_URL` with the prompt and
    parameters. You get back a `task_id`. A 200 means *created*, not done.
-3. **Poll for completion.** GET the query-record endpoint with the `task_id`, backing off (e.g. 3s,
-   then 5s, then 10s). Call `mcp__aegis__report_progress` while waiting ("Still rendering your
-   video…") so you are never silent > ~30s. Do NOT busy-loop with no sleep.
-4. **Download immediately.** When complete, the response has an output URL AND the credit
-   consumption. kie deletes outputs after ~14 days and the link expires in ~20 minutes — download
-   the file NOW into `~/workspace/media/` with a descriptive filename (e.g. `sunset-city.mp4`). That
-   directory is served to the app; the user opens it from History → Media.
-5. **Report the cost.** Immediately after a successful generation, record the cost so the user's
+3. **Poll AND download inside ONE bash command — never poll turn-by-turn.** Making a separate tool
+   call per poll burns the turn budget and the whole task fails with "reached maximum number of
+   turns" (this is the #1 cause of media failures). BEFORE the loop, send ONE progress update
+   ("Rendering your image now — this can take a minute or two"). Then run a SINGLE bash loop that
+   polls with sleeps and downloads the result the moment it's ready. Shape (adjust the endpoint and
+   JSON fields to the model you used — confirm them from the model's doc):
+   ```bash
+   for i in $(seq 1 45); do
+     resp=$(curl -s "$KIE_BASE_URL/<the model's query-record path>?taskId=$TASK_ID")
+     state=$(printf '%s' "$resp" | python3 -c "import sys,json;d=json.load(sys.stdin).get('data',{});print(d.get('successFlag'),d.get('status'))" 2>/dev/null)
+     echo "poll $i: $state"
+     case "$state" in
+       "1 "*|*SUCCESS*)
+         url=$(printf '%s' "$resp" | python3 -c "import sys,json;print(json.load(sys.stdin)['data']['response']['resultUrls'][0])")
+         curl -s "$url" -o ~/workspace/media/<descriptive-name>.<ext>; echo "DONE $url"; break;;
+       *FAIL*) echo "GENERATION FAILED: $resp"; break;;
+     esac
+     sleep 8
+   done
+   ```
+   `~/workspace/media/` is served to the app (History → Media). kie deletes outputs after ~14 days and
+   the link expires in ~20 minutes — this loop downloads immediately, which is why it must be one
+   command. If the loop ends without `DONE`, the render is still running or failed — report honestly.
+4. **Report the cost.** Immediately after a successful generation, record the cost so the user's
    account is charged — call the tool (do NOT curl the telemetry endpoint; you don't hold the key):
    ```
    mcp__aegis__report_media_usage(cost_usd=<USD>, model="<model id>", task_id="<task id>")
@@ -45,7 +61,7 @@ a login/OTP challenge for media, you are on the wrong path — stop and use the 
    `record-info` does NOT include a cost field — set `cost_usd` from the model you used: its fixed
    credit price (see kie.ai/pricing / the catalog) converted to USD. Ask the user nothing about cost.
    The system records it with the key you don't have. Call this ONCE, right before report_result.
-6. **Finish.** Call `mcp__aegis__report_result(status="succeeded", summary="<spoken, plain text>")`.
+5. **Finish.** Call `mcp__aegis__report_result(status="succeeded", summary="<spoken, plain text>")`.
    The summary is spoken aloud — say what you made, not a file path, and never name the vendor
    (see "What to call it").
 
