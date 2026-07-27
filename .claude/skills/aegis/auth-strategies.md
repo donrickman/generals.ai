@@ -23,11 +23,19 @@ quick look at its docs:
   real developer API, and which are notoriously hard or anti-automation. Let that steer your opening
   move — pick the approach most likely to work up front instead of defaulting to one and discovering
   the target is hard by failing.
-- **Has it been solved?** Check `~/workspace/connection_code/` first — reuse beats rediscovery.
+- **Has it been solved?** Check `~/workspace/connection_code/` first — reuse beats rediscovery. If a
+  saved recipe already exists for this source, prefer the CHEAPEST runnable one: a non-browser recipe
+  (imap / api / api_key) beats reusing a logged-in browser session, even for a small ask. Reading a few
+  emails through a working IMAP recipe takes seconds; the browser takes minutes and fights the message
+  HTML/CSS. Use the browser only for an action no recipe covers, or if the recipe fails — never to redo
+  what a saved recipe already does.
 - **Is there a cleaner path than the browser?** An official API, a ready MCP server, or a maintained
-  library is cheaper and more durable — worth it when one genuinely exists for *this* account and the
-  task wants server-side scale (searching a big mailbox, say). For a plain personal-account login
-  there usually isn't one; that's a browser login, so start there.
+  library is cheaper and more durable. If one already exists for *this* account, use it regardless of
+  task size. For a brand-new plain personal-account login there usually isn't one yet; that's a browser
+  login, so start there — but once it works, leave a durable non-browser recipe behind for next time.
+- **Big sources: pull a slice, not the pile.** A mailbox/drive/feed can hold hundreds of thousands of
+  items. To answer a bounded ask, fetch a small recent slice (e.g. the last 10) — never count, list, or
+  pull the whole thing, and don't surface a raw total ("192,516 messages") as if it were the answer.
 
 ## What you have to work with
 - **A browser** — headed, on a real display, driven via the Playwright MCP tools
