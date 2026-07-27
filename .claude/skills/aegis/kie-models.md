@@ -19,9 +19,14 @@ Recommended cheap defaults by type: **image →** Seedream Lite (or imagen4-fast
 4o Image as a default — it is both pricier and slow. Escalate ONLY on an explicit request, and even
 then prefer the lowest tier that meets it.
 
-Cost note: kie's `record-info` does NOT report per-task cost. Cost is attributed per-model (each
-model has a fixed credit price on kie.ai/pricing) — report that model's price in the telemetry call.
-`GET /api/v1/chat/credit` returns the remaining account balance if you need a pre-flight check.
+Cost note: kie's `record-info` does NOT report per-task cost. Report the model's ACTUAL published
+price in the telemetry call — take it from the model's own doc page (each model page lists its price;
+do NOT guess a round number). Convert to USD if it's quoted in credits. This number is what the user
+is billed, so use the real per-generation price for the model you actually ran — not a placeholder.
+`GET /api/v1/chat/credit` returns the remaining account balance (a useful pre-flight check, and the
+before/after delta is the ground-truth credits spent if you ever need to reconcile a single run).
+(Backend note: reported costs are validated in aggregate against kie's real account billing by the
+usage-reconciliation job, so a systematically wrong price will surface there — report honestly.)
 
 ## Images (text→image, and image edit)
 | Model | Good for | Notes |
