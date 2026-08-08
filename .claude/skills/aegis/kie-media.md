@@ -22,7 +22,13 @@ NO browser sign-in, and NO credentials to collect. If you find yourself opening 
 a login/OTP challenge for media, you are on the wrong path — stop and use the `$KIE_BASE_URL` API.
 
 ## Flow
-1. **Pick a model — default to the cheapest, fastest one that can do the job.** Read `kie-models.md`
+1. **Reuse a saved recipe if you have one — do NOT re-research every request.** Confirming a model's
+   exact create-task path/params and looking up its price from the docs is the SLOW part; doing it on
+   EVERY request makes a simple image take minutes. So FIRST check `~/.aegis/kie_recipes.json` (keyed
+   by media type: `image`/`video`/`music`/`audio`): if it holds a recipe for this type, use it and go
+   straight to step 2 — do NOT read the catalog or re-fetch docs/pricing. Only when there is NO saved
+   recipe for this type (or a saved one just failed) do the lookup below (then save it — step 4).
+   **Pick a model — default to the cheapest, fastest one that can do the job.** Read `kie-models.md`
    (same folder) ONLY NOW. Always start from the cheap/fast tier (e.g. a Lite image model). Do NOT
    reach for premium/pro/ultra or slow models on your own — this is shared, company-paid compute.
    Only use a pricier model if the user *explicitly* asked for that model or that quality. If the
@@ -53,7 +59,11 @@ a login/OTP challenge for media, you are on the wrong path — stop and use the 
    `~/workspace/media/` is served to the app (History → Media). kie deletes outputs after ~14 days and
    the link expires in ~20 minutes — this loop downloads immediately, which is why it must be one
    command. If the loop ends without `DONE`, the render is still running or failed — report honestly.
-4. **Report the cost.** Immediately after a successful generation, record the cost so the user's
+4. **Save the recipe, then report the cost.** Immediately after a successful generation: FIRST, if you
+   just did a fresh lookup (no saved recipe), SAVE the working recipe to `~/.aegis/kie_recipes.json`
+   keyed by media type — the create-task path, the exact param names you used, the model id, and its
+   per-generation USD price — so the next request of this type skips the whole catalog/doc/pricing
+   lookup (step 1). THEN record the cost so the user's
    account is charged — call the tool (do NOT curl the telemetry endpoint; you don't hold the key):
    ```
    mcp__aegis__report_media_usage(cost_usd=<USD>, model="<model id>", task_id="<task id>")
